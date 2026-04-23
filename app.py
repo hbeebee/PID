@@ -348,7 +348,7 @@ class PIDCalculator:
 
 MODEL_CLASSES={"fopdt":FOPDTModel,"sopdt":SOPDTModel,"integrating":IntegratingModel}
 MODEL_LABELS={"fopdt":"FOPDT","sopdt":"SOPDT","integrating":"Интегрирующий"}
-MODEL_COLORS={"fopdt":"#38bdf8","sopdt":"#a78bfa","integrating":"#fbbf24"}
+MODEL_COLORS={"fopdt":"#2563eb","sopdt":"#7c3aed","integrating":"#d97706"}
 
 STD_THRESHOLD = 0.15   # % — порог для "хорошей" ступеньки
 
@@ -420,28 +420,36 @@ def run_analysis(t,mv_pct,pv_pct):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  PLOTLY ТЕМА
+#  PLOTLY ТЕМА — светлая
 # ══════════════════════════════════════════════════════════════════
 
-BG="#000000"; BG_P="#0d0d0d"; GRID="#1a1a2e"; TXT="#ffffff"; TXT2="#94a3b8"
+BG      = "#ffffff"
+BG_P    = "#f8fafc"
+GRID    = "#e2e8f0"
+TXT     = "#1e293b"
+TXT2    = "#64748b"
+BORDER  = "#cbd5e1"
 
-PLOTLY_BASE=dict(
-    paper_bgcolor=BG, plot_bgcolor=BG_P,
-    font=dict(color=TXT,family="JetBrains Mono,monospace",size=11),
-    legend=dict(bgcolor="rgba(0,0,0,0.8)",bordercolor="#1e293b",
-                borderwidth=1,font=dict(color=TXT,size=10)),
-    margin=dict(l=55,r=20,t=36,b=36),
+PLOTLY_BASE = dict(
+    paper_bgcolor=BG,
+    plot_bgcolor=BG_P,
+    font=dict(color=TXT, family="IBM Plex Mono, monospace", size=11),
+    legend=dict(bgcolor="rgba(255,255,255,0.95)", bordercolor=BORDER,
+                borderwidth=1, font=dict(color=TXT, size=10)),
+    margin=dict(l=55, r=20, t=40, b=36),
 )
 
-def apply_theme(fig,rows=1):
+def apply_theme(fig, rows=1):
     fig.update_layout(**PLOTLY_BASE)
-    for i in range(1,rows+1):
-        fig.update_xaxes(gridcolor=GRID,zerolinecolor=GRID,
-            tickfont=dict(color=TXT2),title_font=dict(color=TXT),
-            linecolor="#334155",showline=True,row=i)
-        fig.update_yaxes(gridcolor=GRID,zerolinecolor=GRID,
-            tickfont=dict(color=TXT2),title_font=dict(color=TXT),
-            linecolor="#334155",showline=True,row=i)
+    for i in range(1, rows+1):
+        fig.update_xaxes(
+            gridcolor=GRID, zerolinecolor=GRID, zerolinewidth=1,
+            tickfont=dict(color=TXT2), title_font=dict(color=TXT),
+            linecolor=BORDER, showline=True, mirror=False, row=i)
+        fig.update_yaxes(
+            gridcolor=GRID, zerolinecolor=GRID, zerolinewidth=1,
+            tickfont=dict(color=TXT2), title_font=dict(color=TXT),
+            linecolor=BORDER, showline=True, mirror=False, row=i)
     return fig
 
 
@@ -449,45 +457,165 @@ def apply_theme(fig,rows=1):
 #  APP
 # ══════════════════════════════════════════════════════════════════
 
-st.set_page_config(page_title="Process Model Analyzer",page_icon="⚡",
-                   layout="wide",initial_sidebar_state="expanded")
+st.set_page_config(page_title="Process Model Analyzer", page_icon="⚡",
+                   layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
-html,body,[class*="css"],[data-testid]{font-family:'JetBrains Mono',monospace!important;background-color:#000!important;}
-.main,.block-container,[data-testid="stAppViewContainer"],[data-testid="stMainBlockContainer"]{background:#000!important;}
-p,span,div,label,h1,h2,h3,li,td,th,[class*="st-"],[data-testid*="st"]{color:#fff!important;}
-section[data-testid="stSidebar"]{background:#050510!important;border-right:1px solid #1e293b!important;}
-section[data-testid="stSidebar"] *{color:#fff!important;}
-section[data-testid="stSidebar"] label p{color:#7dd3fc!important;}
-div[data-testid="metric-container"]{background:#050520!important;border:1px solid #1d4ed8!important;border-radius:10px!important;padding:1rem 1.25rem!important;}
-div[data-testid="stMetricLabel"] p,div[data-testid="stMetricLabel"] label{color:#60a5fa!important;font-size:10px!important;letter-spacing:.12em!important;text-transform:uppercase!important;font-weight:700!important;}
-div[data-testid="stMetricValue"],div[data-testid="stMetricValue"] *{color:#fff!important;font-size:1.6rem!important;font-weight:700!important;}
-div[data-testid="stMetricDelta"] *{color:#34d399!important;}
-.stButton>button{background:#1d4ed8!important;color:#fff!important;border:none!important;border-radius:8px!important;font-weight:700!important;font-size:14px!important;padding:.6rem 1.5rem!important;}
-.stButton>button:hover{background:#2563eb!important;}
-[data-testid="stExpander"]{background:#050520!important;border:1px solid #1e293b!important;border-radius:8px!important;}
-[data-testid="stExpander"] *{color:#e2e8f0!important;}
-[data-testid="stDataFrame"] *{color:#e2e8f0!important;}
-code,pre{background:#0f172a!important;color:#38bdf8!important;border:1px solid #1e293b!important;border-radius:6px!important;padding:.2em .5em!important;}
-[data-testid="stRadio"] label p{color:#e2e8f0!important;}
-label[data-testid="stWidgetLabel"] p{color:#7dd3fc!important;}
-[data-testid="stCaptionContainer"] p{color:#475569!important;}
-hr{border-color:#1e293b!important;}
-[data-testid="stAlert"]*{color:#fff!important;}
-[data-testid="stFileUploader"]{background:#050520!important;border:2px dashed #334155!important;border-radius:10px!important;}
-[data-testid="stFileUploader"]*{color:#e2e8f0!important;}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+/* ── Base ── */
+html, body, [class*="css"], [data-testid] {
+    font-family: 'IBM Plex Sans', sans-serif !important;
+    background-color: #f1f5f9 !important;
+    color: #1e293b !important;
+}
+.main, .block-container,
+[data-testid="stAppViewContainer"],
+[data-testid="stMainBlockContainer"] {
+    background: #f1f5f9 !important;
+}
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] {
+    background: #ffffff !important;
+    border-right: 1px solid #e2e8f0 !important;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.04) !important;
+}
+section[data-testid="stSidebar"] * { color: #1e293b !important; }
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 { color: #0f172a !important; font-weight: 600 !important; }
+section[data-testid="stSidebar"] label p { color: #475569 !important; font-size: 12px !important; }
+section[data-testid="stSidebar"] hr { border-color: #e2e8f0 !important; }
+
+/* ── Metric cards ── */
+div[data-testid="metric-container"] {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-top: 3px solid #2563eb !important;
+    border-radius: 10px !important;
+    padding: 1rem 1.25rem !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
+}
+div[data-testid="stMetricLabel"] p,
+div[data-testid="stMetricLabel"] label {
+    color: #64748b !important;
+    font-size: 11px !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    font-weight: 600 !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+}
+div[data-testid="stMetricValue"],
+div[data-testid="stMetricValue"] * {
+    color: #0f172a !important;
+    font-size: 1.55rem !important;
+    font-weight: 600 !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+}
+div[data-testid="stMetricDelta"] * { color: #16a34a !important; }
+div[data-testid="stMetricDelta"][data-direction="down"] * { color: #dc2626 !important; }
+
+/* ── Buttons ── */
+.stButton > button {
+    background: #2563eb !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 0.55rem 1.5rem !important;
+    letter-spacing: 0.02em !important;
+    box-shadow: 0 2px 6px rgba(37,99,235,0.3) !important;
+    transition: all 0.15s !important;
+}
+.stButton > button:hover {
+    background: #1d4ed8 !important;
+    box-shadow: 0 3px 10px rgba(37,99,235,0.4) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ── Content cards (expander) ── */
+[data-testid="stExpander"] {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+}
+[data-testid="stExpander"] * { color: #1e293b !important; }
+[data-testid="stExpander"] summary { color: #0f172a !important; font-weight: 500 !important; }
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"] * { color: #1e293b !important; }
+.dataframe th { background: #f8fafc !important; color: #475569 !important;
+                font-size: 11px !important; text-transform: uppercase !important;
+                letter-spacing: 0.06em !important; }
+.dataframe td { color: #1e293b !important; }
+
+/* ── Code ── */
+code, pre {
+    background: #f0f4ff !important;
+    color: #1d4ed8 !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 6px !important;
+    padding: 0.25em 0.6em !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 13px !important;
+}
+
+/* ── Alerts ── */
+[data-testid="stAlert"] * { color: #1e293b !important; }
+
+/* ── Radio ── */
+[data-testid="stRadio"] label p { color: #334155 !important; }
+[data-testid="stRadio"] div { color: #1e293b !important; }
+
+/* ── Labels / inputs ── */
+label[data-testid="stWidgetLabel"] p { color: #475569 !important; font-size: 13px !important; }
+p, span, li, td, th { color: #1e293b !important; }
+h1 { color: #0f172a !important; }
+h2, h3 { color: #1e293b !important; }
+
+/* ── Caption ── */
+[data-testid="stCaptionContainer"] p { color: #94a3b8 !important; font-size: 12px !important; }
+
+/* ── Divider ── */
+hr { border-color: #e2e8f0 !important; }
+
+/* ── File uploader ── */
+[data-testid="stFileUploader"] {
+    background: #ffffff !important;
+    border: 2px dashed #cbd5e1 !important;
+    border-radius: 10px !important;
+}
+[data-testid="stFileUploader"] * { color: #475569 !important; }
+
+/* ── Select / number input ── */
+.stSelectbox select, .stNumberInput input, .stTextInput input {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+}
+
+/* ── Success / info message styling ── */
+div[data-testid="stAlert"][data-baseweb="notification"] {
+    border-radius: 8px !important;
+}
 </style>
-""",unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # Session state
 for _k,_v in [("done",False),("mk","fopdt"),("res",None),("arrs",None)]:
     if _k not in st.session_state: st.session_state[_k]=_v
 
 # Заголовок
-st.markdown("<h1 style='color:#38bdf8;letter-spacing:-.02em'>⚡ Process Model Analyzer</h1>",
-            unsafe_allow_html=True)
+st.markdown(
+    "<h1 style='color:#1e3a8a;letter-spacing:-.02em;font-family:IBM Plex Sans,sans-serif;'>"
+    "⚡ Process Model Analyzer</h1>",
+    unsafe_allow_html=True
+)
 st.caption("ARX МНК · FOPDT · SOPDT · Интегрирующий · PID  v4.0")
 st.divider()
 
@@ -612,18 +740,20 @@ elif dm:
     mc[len(params)+1].metric("RMSE",f"{dm.rmse:.4f}" if dm.rmse else "—")
 
     st.markdown(
-        f"<div style='background:#050520;border:1px solid #1e293b;border-radius:8px;"
-        f"padding:12px 16px;margin:8px 0;font-family:JetBrains Mono,monospace;"
-        f"font-size:14px;color:#38bdf8'>{dm.tf_string()}</div>",
+        f"<div style='background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #2563eb;"
+        f"border-radius:8px;padding:12px 16px;margin:8px 0;"
+        f"font-family:IBM Plex Mono,monospace;font-size:14px;"
+        f"color:#1d4ed8'>{dm.tf_string()}</div>",
         unsafe_allow_html=True)
 
     if dk=="fopdt" and hasattr(dm,"discrete_string"):
         ds=dm.discrete_string()
         if ds:
             st.markdown(
-                f"<div style='background:#050520;border:1px solid #1e293b;border-radius:8px;"
-                f"padding:10px 16px;margin:4px 0;font-family:JetBrains Mono,monospace;"
-                f"font-size:12px;color:#a78bfa'>{ds}</div>",
+                f"<div style='background:#faf5ff;border:1px solid #e9d5ff;border-left:4px solid #7c3aed;"
+                f"border-radius:8px;padding:10px 16px;margin:4px 0;"
+                f"font-family:IBM Plex Mono,monospace;font-size:12px;"
+                f"color:#5b21b6'>{ds}</div>",
                 unsafe_allow_html=True)
 
     with st.expander(f"📊 Детали по {n_steps} ступенькам"):
@@ -649,15 +779,15 @@ fig=make_subplots(rows=2,cols=1,shared_xaxes=True,
     vertical_spacing=0.07)
 
 fig.add_trace(go.Scatter(x=ta,y=mv_pct,name="MV",
-    line=dict(color="#fbbf24",width=1.8),mode="lines",
-    fill="tozeroy",fillcolor="rgba(251,191,36,0.05)"),row=1,col=1)
+    line=dict(color="#d97706",width=1.8),mode="lines",
+    fill="tozeroy",fillcolor="rgba(217,119,6,0.08)"),row=1,col=1)
 
 for s in steps:
-    clr="rgba(52,211,153,0.4)" if s in good_steps else "rgba(248,113,113,0.3)"
+    clr="rgba(22,163,74,0.5)" if s in good_steps else "rgba(220,38,38,0.3)"
     fig.add_vline(x=s.tStep,line_dash="dash",line_color=clr,line_width=1,row=1)
 
 fig.add_trace(go.Scatter(x=ta,y=pv_pct,name="PV (данные)",
-    line=dict(color="#ffffff",width=2.0),mode="lines"),row=2,col=1)
+    line=dict(color="#0f172a",width=2.0),mode="lines"),row=2,col=1)
 
 for key in MODEL_CLASSES:
     m=models.get(key)
@@ -669,18 +799,18 @@ for key in MODEL_CLASSES:
             line=dict(color=MODEL_COLORS[key],width=lw,dash=dash),mode="lines"),row=2,col=1)
 
 for s in steps:
-    clr="rgba(52,211,153,0.25)" if s in good_steps else "rgba(248,113,113,0.2)"
+    clr="rgba(22,163,74,0.3)" if s in good_steps else "rgba(220,38,38,0.2)"
     fig.add_vline(x=s.tStep,line_dash="dash",line_color=clr,line_width=1,row=2)
 
 # Метки ступенек
 for s in steps:
     lbl="✓" if s in good_steps else "⚠"
     fig.add_annotation(x=s.tStep,y=max(mv_pct)*0.9,text=f"{lbl}t={s.tStep:.0f}",
-        showarrow=False,font=dict(color=TXT2,size=8),row=1,col=1)
+        showarrow=False,font=dict(color="#64748b",size=8),row=1,col=1)
 
 fig.update_layout(height=620,showlegend=True,**PLOTLY_BASE)
 apply_theme(fig,rows=2)
-for ann in fig.layout.annotations: ann.font.color="#94a3b8"
+for ann in fig.layout.annotations: ann.font.color="#475569"
 st.plotly_chart(fig,use_container_width=True)
 
 # ── Раздел 5: Сравнение ───────────────────────────────────────────
@@ -750,23 +880,23 @@ K={K_p:.4f} · T={T_p:.4f} · d={d_p:.4f} · e={pid_rec['e']:.4f} · ступе�
         subplot_titles=["PV и уставка, %","MV выход регулятора, %","Ошибка e(t), %"],
         vertical_spacing=0.09)
     fp.add_trace(go.Scatter(x=ta,y=pv_pct,name="PV данные",
-        line=dict(color="#64748b",width=1,dash="dot")),row=1,col=1)
-    fp.add_hline(y=pid_sp,line_dash="dash",line_color="#f87171",line_width=1.5,
-        annotation_text=f"SP={pid_sp:.1f}%",annotation_font_color="#f87171")
+        line=dict(color="#94a3b8",width=1,dash="dot")),row=1,col=1)
+    fp.add_hline(y=pid_sp,line_dash="dash",line_color="#dc2626",line_width=1.5,
+        annotation_text=f"SP={pid_sp:.1f}%",annotation_font_color="#dc2626")
     fp.add_trace(go.Scatter(x=ta,y=mv_rec,
         name=f"MV рекоменд. Kc={pid_rec['Gain (Kc)']:.3f}",
-        line=dict(color="#fbbf24",width=2)),row=2,col=1)
+        line=dict(color="#d97706",width=2)),row=2,col=1)
     if any([kc_ov!=0,ti_ov!=0,td_ov!=0]):
         fp.add_trace(go.Scatter(x=ta,y=mv_usr,
             name=f"MV скоррект. Kc={Kc_u:.3f}",
-            line=dict(color="#34d399",width=2,dash="dash")),row=2,col=1)
+            line=dict(color="#16a34a",width=2,dash="dash")),row=2,col=1)
     fp.add_trace(go.Scatter(x=ta,y=pid_sp-pv_pct,name="e(t)",
-        fill="tozeroy",fillcolor="rgba(248,113,113,0.07)",
-        line=dict(color="#f87171",width=1.5)),row=3,col=1)
-    fp.add_hline(y=0,line_color="#334155",line_width=0.8,row=3)
+        fill="tozeroy",fillcolor="rgba(220,38,38,0.06)",
+        line=dict(color="#dc2626",width=1.5)),row=3,col=1)
+    fp.add_hline(y=0,line_color="#cbd5e1",line_width=0.8,row=3)
     fp.update_layout(height=650,showlegend=True,**PLOTLY_BASE)
     apply_theme(fp,rows=3)
-    for ann in fp.layout.annotations: ann.font.color="#94a3b8"
+    for ann in fp.layout.annotations: ann.font.color="#475569"
     st.plotly_chart(fp,use_container_width=True)
 
 st.divider()
