@@ -517,31 +517,6 @@ div[data-testid="stMetricValue"] * {
 div[data-testid="stMetricDelta"] * { color: #16a34a !important; }
 div[data-testid="stMetricDelta"][data-direction="down"] * { color: #dc2626 !important; }
 
-/* ── Buttons ── */
-.stButton > button {
-    background: #dc2626 !important;
-    color: #ffffff !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    font-size: 14px !important;
-    padding: 0.55rem 1.5rem !important;
-    letter-spacing: 0.02em !important;
-    box-shadow: 0 2px 6px rgba(220,38,38,0.3) !important;
-    transition: all 0.15s !important;
-    outline: none !important;
-}
-.stButton > button:hover {
-    background: #b91c1c !important;
-    box-shadow: 0 3px 10px rgba(220,38,38,0.4) !important;
-    transform: translateY(-1px) !important;
-    outline: none !important;
-}
-.stButton > button:focus {
-    outline: none !important;
-    box-shadow: 0 0 0 3px rgba(220,38,38,0.25) !important;
-}
-
 /* ── Content cards (expander) ── */
 [data-testid="stExpander"] {
     background: #ffffff !important;
@@ -589,13 +564,59 @@ h2, h3 { color: #1e293b !important; }
 /* ── Divider ── */
 hr { border-color: #e2e8f0 !important; }
 
-/* ── File uploader ── */
+/* ── File uploader — убираем наложение текста ── */
 [data-testid="stFileUploader"] {
     background: #ffffff !important;
     border: 2px dashed #cbd5e1 !important;
     border-radius: 10px !important;
 }
 [data-testid="stFileUploader"] * { color: #475569 !important; }
+/* Скрываем дублирующийся текст Browse/Upload внутри кнопки загрузчика */
+[data-testid="stFileUploader"] section > button > div > span:first-child {
+    display: none !important;
+}
+[data-testid="stFileUploaderDropzone"] small { display: none !important; }
+
+/* ── Buttons — убираем все фоны/обводки вокруг кнопки ── */
+.stButton {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+.stButton > button {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    padding: 0.55rem 1.75rem !important;
+    letter-spacing: 0.02em !important;
+    box-shadow: none !important;
+    outline: none !important;
+    transition: background 0.15s !important;
+}
+.stButton > button:hover {
+    background: #b91c1c !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+.stButton > button:focus,
+.stButton > button:focus-visible,
+.stButton > button:active {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+/* Убираем любой фон-обёртку вокруг кнопки */
+.stButton > div,
+[data-testid="baseButton-secondary"],
+[data-testid="baseButton-primary"] {
+    background: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}
 
 /* ── Select / number input ── */
 .stSelectbox select, .stNumberInput input, .stTextInput input {
@@ -613,7 +634,7 @@ div[data-testid="stAlert"][data-baseweb="notification"] {
 """, unsafe_allow_html=True)
 
 # Session state
-for _k,_v in [("done",False),("mk","fopdt"),("res",None),("arrs",None)]:
+for _k,_v in [("done",False),("mk","fopdt"),("res",None),("data_arrays",None)]:
     if _k not in st.session_state: st.session_state[_k]=_v
 
 # Заголовок
@@ -696,13 +717,13 @@ if st.button("▶  Запустить анализ",type="primary"):
             st.session_state.done=True; st.session_state.mk=best_key
             st.session_state.res=dict(steps=steps,good=good_steps,partial=partial_steps,
                 models=models,full_sim=full_sim,best_key=best_key)
-            st.session_state.arrs=dict(t=ta,mv=mv_pct,pv=pv_pct)
+            st.session_state.data_arrays=dict(t=ta,mv=mv_pct,pv=pv_pct)
         except Exception as ex:
             import traceback; st.error(f"Ошибка: {ex}"); st.code(traceback.format_exc())
 
 if not st.session_state.done: st.caption("Нажмите кнопку"); st.stop()
 
-R=st.session_state.res; A=st.session_state.arrs
+R=st.session_state.res; A=st.session_state.data_arrays
 ta=A["t"]; mv_pct=A["mv"]; pv_pct=A["pv"]
 steps=R["steps"]; good_steps=R["good"]; partial_steps=R["partial"]
 models=R["models"]; full_sim=R["full_sim"]; best_key=R["best_key"]
@@ -842,7 +863,7 @@ else:
 
     pc=st.columns(5 if Td_rec else 4)
     pc[0].metric("Gain Kc",  f"{Kc_rec:.4f}")
-    pc[1].metric("PB = 100/Kc", f"{PB_rec:.2f} %" if PB_rec else "—")
+    pc[1].metric("PB = 100/Kc", f"{PB_rec:.2f}" if PB_rec else "—")
     pc[2].metric("Reset Ti", f"{Ti_rec:.4f}")
     if Td_rec is not None:
         pc[3].metric("Deriv Td", f"{Td_rec:.4f}")
@@ -851,13 +872,13 @@ else:
         pc[3].metric("e (response time)", f"{pid_rec['e']:.4f}")
 
     with st.expander("📐 Формулы (Desired Response)"):
-        PB_formula = f"100 / {Kc_rec:.4f} = **{PB_rec:.2f} %**" if PB_rec else "—"
+        PB_formula = f"100 / {Kc_rec:.4f} = **{PB_rec:.2f}**" if PB_rec else "—"
         Td_val = f"**{Td_rec:.4f}**" if Td_rec else "—"
         st.markdown(f"""
 | Параметр | Формула | Значение |
 |---------|---------|---------|
 | **Kc** — Коэффициент усиления | `(2T+d) / (K·(2e+d))` | **{Kc_rec:.4f}** |
-| **PB** — Полоса пропорциональности | `100 / Kc` | **{PB_rec:.2f} %** |
+| **PB** — Полоса пропорциональности | `100 / Kc` | **{PB_rec:.2f}** |
 | **Ti** — Время интегрирования | `T + d/2` | **{Ti_rec:.4f}** |
 | **Td** — Время дифференцирования | `T·d / (2T+d)` | {Td_val} |
 
@@ -874,7 +895,7 @@ else:
         PB_u = round(100.0 / Kc_u, 4) if Kc_u else None
         ac=st.columns(4)
         ac[0].metric("Kc",  f"{Kc_u:.4f}", delta=f"{Kc_u-pid_rec['Gain (Kc)']:+.4f}")
-        ac[1].metric("PB = 100/Kc", f"{PB_u:.2f} %" if PB_u else "—")
+        ac[1].metric("PB = 100/Kc", f"{PB_u:.2f}" if PB_u else "—")
         ac[2].metric("Ti",  f"{Ti_u:.4f}", delta=f"{Ti_u-pid_rec['Reset (Ti)']:+.4f}")
         if pid_type=="PID":
             ac[3].metric("Td", f"{Td_u:.4f}",
