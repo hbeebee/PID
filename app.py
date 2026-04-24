@@ -72,13 +72,16 @@ def find_all_steps(t,mv,pv,frac=0.10):
 def step_quality(s: StepInfo) -> float:
     """
     Оценка завершённости переходного процесса.
-    Возвращает std хвоста плато (% от диапазона).
+    Возвращает std хвоста плато нормированный на размах сигнала PV.
     Низкое значение = ступенька завершена.
+    Нормировка позволяет корректно работать с зашумлёнными данными.
     """
-    plat=s.pv[s.step_idx:s.end_idx]
-    sz=max(3,int(len(plat)*0.15))
-    tail_std=float(np.std(plat[-sz:]))
-    return tail_std
+    plat = s.pv[s.step_idx:s.end_idx]
+    sz   = max(3, int(len(plat) * 0.15))
+    tail_std = float(np.std(plat[-sz:]))
+    # Нормируем на амплитуду скачка PV — делает порог адаптивным к шуму
+    scale = max(abs(s.delta_pv), 1e-6)
+    return tail_std / scale   # безразмерная величина: 0.0 = идеально, >0.5 = незавершённо
 
 # ══════════════════════════════════════════════════════════════════
 #  FOPDT — идентификация ARX МНК
@@ -97,6 +100,8 @@ class FOPDTModel:
     def identify_arx(self, steps_good, dt=1.0):
         """
         МНК по всем хорошим ступенькам совместно.
+        Для зашумлённых данных: перед МНК применяем лёгкое сглаживание
+        только для идентификации параметров (симуляция остаётся по реальным данным).
         Ищем a, b, delay минимизирующие суммарный MSE.
         """
         if not steps_good:
@@ -105,29 +110,33 @@ class FOPDTModel:
 
         best_mse=np.inf; best_a=best_b=best_d=None
 
-        for d in range(2, 8):          # delay от 2 (минимум 1 шаг dead time)
+        for d in range(1, 9):
             rows=[]; tgt=[]
             for s in steps_good:
-                y=s.pv[s.step_idx:s.end_idx]
-                u=s.mv[s.step_idx:s.end_idx]
-                N=len(y)
-                if N<d+3: continue
-                for k in range(d+1,N):
+                # Сглаживаем PV для МНК — устойчивость к шуму
+                y_raw = s.pv[s.step_idx:s.end_idx]
+                u_raw = s.mv[s.step_idx:s.end_idx]
+                N = len(y_raw)
+                if N < d + 4: continue
+                # Лёгкое сглаживание (окно 3) только для матрицы регрессии
+                y = denoise(y_raw, min(5, N//3*2+1 if N//3*2+1>=3 else 3))
+                u = u_raw   # MV не сглаживаем — ступеньки должны быть чёткими
+                for k in range(d+1, N):
                     rows.append([y[k-1], u[k-d]])
                     tgt.append(y[k])
-            if len(rows)<6: continue
-            try: ab=np.linalg.lstsq(np.array(rows),np.array(tgt),rcond=None)[0]
+            if len(rows) < 6: continue
+            try:
+                ab = np.linalg.lstsq(np.array(rows), np.array(tgt), rcond=None)[0]
             except: continue
-            a_c,b_c=ab[0],ab[1]
-            if not (0.01<a_c<0.9999): continue
-            # Проверяем знак K
-            K_c=b_c/(1-a_c)
-            if K_c<=0: continue
-            # Общий MSE
+            a_c, b_c = ab[0], ab[1]
+            if not (0.01 < a_c < 0.9999): continue
+            K_c = b_c / (1 - a_c)
+            if K_c <= 0: continue
+            # MSE считаем на RAW данных (не сглаженных)
             total_mse=0.; cnt=0
             for s in steps_good:
                 y=s.pv[s.step_idx:s.end_idx]; u=s.mv[s.step_idx:s.end_idx]; N=len(y)
-                if N<d+3: continue
+                if N < d+4: continue
                 pred=np.zeros(N); pred[0]=y[0]
                 for k in range(1,N):
                     ud=u[k-d] if k>=d else 0.; pred[k]=a_c*pred[k-1]+b_c*ud
@@ -138,14 +147,14 @@ class FOPDTModel:
                 best_mse=mse; best_a=a_c; best_b=b_c; best_d=d
 
         if best_a is None:
-            self.error="ARX МНК не сошёлся"
+            # Резерв: попробовать без ограничения на знак K (интегрирующий?)
+            self.error="ARX МНК не сошёлся — проверьте данные или попробуйте модель Интегрирующий"
             return
 
         self.a=best_a; self.b=best_b; self.delay=best_d
         self.tau=-dt/np.log(best_a)
         self.K=best_b/(1-best_a)
         self.theta=max(0.0,(best_d-1)*dt)
-        # Берём pv0/delta_mv из первой хорошей ступеньки для совместимости
         s0=steps_good[0]
         self.pv0=s0.pv0; self.pv_final=s0.pv_final
         self.delta_mv=s0.delta_mv; self.tStep=s0.tStep
@@ -350,18 +359,27 @@ MODEL_CLASSES={"fopdt":FOPDTModel,"sopdt":SOPDTModel,"integrating":IntegratingMo
 MODEL_LABELS={"fopdt":"FOPDT","sopdt":"SOPDT","integrating":"Интегрирующий"}
 MODEL_COLORS={"fopdt":"#2563eb","sopdt":"#7c3aed","integrating":"#d97706"}
 
-STD_THRESHOLD = 0.15   # % — порог для "хорошей" ступеньки
+STD_THRESHOLD = 0.30   # нормированный порог (std/delta_pv): < 0.30 = ступенька завершена
+                       # 0.30 соответствует ~30% шума от амплитуды — работает с зашумлёнными данными
 
 
 def run_analysis(t,mv_pct,pv_pct):
     dt=float(np.median(np.diff(t))) if len(t)>1 else 1.
     steps=find_all_steps(t,mv_pct,pv_pct)
 
+    # Оцениваем уровень шума по всем данным (медианное абсолютное отклонение)
+    noise_est = float(np.median(np.abs(np.diff(pv_pct)))) * 1.5
+    # Адаптивный порог: если данные зашумлены, порог выше
+    # Порог 0.30 нормированный — работает для шума до ~30% от амплитуды ступеньки
+    adaptive_threshold = max(STD_THRESHOLD, noise_est / max(
+        np.max(np.abs(np.diff(pv_pct))), 1e-6) * 2)
+    adaptive_threshold = min(adaptive_threshold, 0.6)  # но не более 60%
+
     # Разделяем ступеньки на хорошие и незавершённые
     good_steps=[]; partial_steps=[]
     for s in steps:
         q=step_quality(s)
-        if q<=STD_THRESHOLD and len(s.pv[s.step_idx:s.end_idx])>=6:
+        if q<=adaptive_threshold and len(s.pv[s.step_idx:s.end_idx])>=6:
             good_steps.append(s)
         else:
             partial_steps.append(s)
@@ -630,11 +648,43 @@ hr { border-color: #e2e8f0 !important; }
 div[data-testid="stAlert"][data-baseweb="notification"] {
     border-radius: 8px !important;
 }
+
+/* ── Fix 2: скрыть "keyboard_double_arrow_right" текст иконки в expander ── */
+[data-testid="stExpanderToggleIcon"],
+.stExpanderHeader .st-emotion-cache-1h9usn1,
+[data-testid="stExpander"] summary svg,
+[data-testid="stExpander"] [data-baseweb="accordion"] svg {
+    font-size: 0 !important;
+    visibility: hidden !important;
+}
+/* Скрыть material icon текст если шрифт не загрузился */
+.stExpander span[class*="material"],
+span.material-symbols-rounded,
+span.material-icons {
+    font-size: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    display: none !important;
+}
+
+/* ── Fix 4: убрать красное кольцо/фон вокруг кнопки — только сама кнопка красная ── */
+/* Контейнер кнопки прозрачный */
+div[data-testid="stButton"],
+div[data-testid="stFormSubmitButton"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+}
+/* Убираем focus-ring браузера */
+*:focus { outline: none !important; }
+*:focus-visible { outline: 2px solid transparent !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# Session state
-for _k,_v in [("done",False),("mk","fopdt"),("res",None),("data_arrays",None)]:
+# Session state — короткие ключи без спецсимволов
+for _k,_v in [("ok",False),("model","fopdt"),("result",None),("signals",None)]:
     if _k not in st.session_state: st.session_state[_k]=_v
 
 # Заголовок
@@ -714,16 +764,16 @@ if st.button("▶  Запустить анализ",type="primary"):
             mv_sp=max(mv_max-mv_min,1e-6); pv_sp=max(pv_max-pv_min,1e-6)
             mv_pct=(mva-mv_min)/mv_sp*100.; pv_pct=(pva-pv_min)/pv_sp*100.
             steps,good_steps,partial_steps,models,full_sim,best_key=run_analysis(ta,mv_pct,pv_pct)
-            st.session_state.done=True; st.session_state.mk=best_key
-            st.session_state.res=dict(steps=steps,good=good_steps,partial=partial_steps,
+            st.session_state.ok=True; st.session_state.model=best_key
+            st.session_state.result=dict(steps=steps,good=good_steps,partial=partial_steps,
                 models=models,full_sim=full_sim,best_key=best_key)
-            st.session_state.data_arrays=dict(t=ta,mv=mv_pct,pv=pv_pct)
+            st.session_state.signals=dict(t=ta,mv=mv_pct,pv=pv_pct)
         except Exception as ex:
             import traceback; st.error(f"Ошибка: {ex}"); st.code(traceback.format_exc())
 
-if not st.session_state.done: st.caption("Нажмите кнопку"); st.stop()
+if not st.session_state.ok: st.caption("Нажмите кнопку"); st.stop()
 
-R=st.session_state.res; A=st.session_state.data_arrays
+R=st.session_state.result; A=st.session_state.signals
 ta=A["t"]; mv_pct=A["mv"]; pv_pct=A["pv"]
 steps=R["steps"]; good_steps=R["good"]; partial_steps=R["partial"]
 models=R["models"]; full_sim=R["full_sim"]; best_key=R["best_key"]
@@ -743,7 +793,7 @@ if partial_steps:
 # ── Раздел 3: Параметры ───────────────────────────────────────────
 st.markdown("### 3️⃣ Параметры модели")
 
-def _sw(): st.session_state.mk=st.session_state["model_selector"]
+def _sw(): st.session_state.model=st.session_state["model_selector"]
 opts=list(MODEL_CLASSES.keys())
 labels=[]
 for k in opts:
@@ -753,9 +803,9 @@ for k in opts:
     labels.append(f"{MODEL_LABELS[k]}{sfx}{fit_str}")
 
 st.radio("Модель:",opts,format_func=lambda k:labels[opts.index(k)],
-         index=opts.index(st.session_state.mk),key="model_selector",on_change=_sw,horizontal=True)
+         index=opts.index(st.session_state.model),key="model_selector",on_change=_sw,horizontal=True)
 
-dk=st.session_state.mk; dm=models.get(dk)
+dk=st.session_state.model; dm=models.get(dk)
 
 if dm and dm.error:
     st.warning(f"**{MODEL_LABELS[dk]}**: {dm.error}")
